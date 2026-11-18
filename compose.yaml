@@ -1,0 +1,15 @@
+# Runs the Telegram connector on any machine with Docker: copy .env.example to .env, fill it in, then
+#   docker compose up -d
+# Put an HTTPS reverse proxy in front of port 8080: Claude only connects to https addresses.
+services:
+  telegram-connector:
+    build: .
+    image: telegram-connector
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - telegram-data:/data
+volumes:
+  telegram-data:

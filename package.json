@@ -1,0 +1,35 @@
+{
+  "name": "telegram-connector",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted Telegram connector for Claude (and other MCP clients): read and search chats, groups and channels, read shared files, send messages and files, talk to allowed bots, and exchange files with G-Spot Assistant and the WhatsApp connector",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node --max-semi-space-size=2 --disable-warning=ExperimentalWarning dist/server.js",
+    "dev": "npm run build && node --disable-warning=ExperimentalWarning --env-file=.env dist/server.js",
+    "test": "npm run build && node --disable-warning=ExperimentalWarning --test \"dist/**/*.test.js\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "generate-secrets": "node --disable-warning=ExperimentalWarning scripts/generate-secrets.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/server": "2.1.0",
+    "express": "5.2.1",
+    "express-rate-limit": "8.7.0",
+    "pdfjs-dist": "6.3.289",
+    "sharp": "0.35.5",
+    "telegram": "2.26.22",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.1.0",
+    "@types/express": "5.0.6",
+    "@types/node": "24.13.6",
+    "typescript": "5.9.3"
+  }
+}
