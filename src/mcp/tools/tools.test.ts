@@ -212,4 +212,8 @@ test('voice: offered only when ElevenLabs is set up; sends a voice note with a p
   const styled = await call(sendVoiceTool, { chat: ALICE, text: 'Salut, on dîne ?', style: 'strong Russian accent' }, ctx);
   assert.equal(styled.isError, false, styled.text);
   assert.deepEqual(body, { text: '[strong Russian accent] Salut, on dîne ?', model_id: 'eleven_v3' });
+  // An accent from another language: the phonetic spelling is read as that language.
+  const accented = await call(sendVoiceTool, { chat: ALICE, text: 'Привет', accent_language: 'hi', phonetic_text: 'प्रिव्येत' }, ctx);
+  assert.equal(accented.isError, false, accented.text);
+  assert.deepEqual(body, { text: 'प्रिव्येत', model_id: 'eleven_v3', language_code: 'hi' });
 });
