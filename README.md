@@ -52,8 +52,11 @@ The session shows in Telegram → Settings → Devices as "Claude connector". En
 | `ELEVENLABS_API_KEY` | elevenlabs.io → profile → **API Keys** (the free plan works) |
 | `ELEVENLABS_VOICE_ID` | The voice to use |
 | `ELEVENLABS_MODEL_ID` | Optional: `eleven_multilingual_v2` (default) or `eleven_v3` |
-| `ELEVENLABS_STYLE_TAGS` | Optional, `eleven_v3` only: e.g. `[strong French accent] [playful]` |
+| `ELEVENLABS_STYLE_TAGS` | Optional, `eleven_v3` only: a default style for messages that ask for none, e.g. `[strong French accent] [playful]` |
 | `VOICE_MAX_CHARS` | Optional: the longest text per message (default 600) |
+
+- **Accent and tone per message.** Just say it: "send Pierre a voice message in French with a strong Russian accent" or "in English, West African accent, playful". Claude passes it to `telegram_send_voice` as `style`, which switches that message to the expressive `eleven_v3` model. Without a style, the voice speaks naturally with `ELEVENLABS_MODEL_ID`. Nothing needs setting in advance.
+- **Your own voice.** Clone it on elevenlabs.io (Voices → My Voices; instant cloning needs the Starter plan) and put its id in `ELEVENLABS_VOICE_ID`, for example `ELEVENLABS_VOICE_ID=YLCbQxXSS0chg2xbSelB` (the author's cloned voice; use your own). Speaking another language, it keeps its natural accent.
 
 **Free plan limits.** About 10,000 characters a month, and only the built-in voices and your own voices: library voices need a paid plan. `npm run voice-preview` compares voices by ear (see the script's header).
 

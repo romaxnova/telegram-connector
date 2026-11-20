@@ -206,4 +206,10 @@ test('voice: offered only when ElevenLabs is set up; sends a voice note with a p
   assert.equal(sent.voice!.waveform.length, 63); // 100 levels × 5 bits
   assert.match((await call(sendVoiceTool, { chat: ALICE, text: 'x'.repeat(41) }, ctx)).text, /limited to 40/);
   assert.equal((await call(sendVoiceTool, { chat: '@PriceBot', text: 'hi' }, ctx)).isError, true);
+  // An accent asked for in the request goes to ElevenLabs as audio tags, with the expressive model.
+  let body: { text: string; model_id: string } | undefined;
+  ctx.fetchImpl = (async (_u: string | URL, init?: RequestInit) => ((body = JSON.parse(String(init!.body))), new Response(toneMp3(), { status: 200 }))) as typeof fetch;
+  const styled = await call(sendVoiceTool, { chat: ALICE, text: 'Salut, on dîne ?', style: 'strong Russian accent' }, ctx);
+  assert.equal(styled.isError, false, styled.text);
+  assert.deepEqual(body, { text: '[strong Russian accent] Salut, on dîne ?', model_id: 'eleven_v3' });
 });
