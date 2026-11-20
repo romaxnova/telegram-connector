@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+ <g fill="none" stroke="#2E86DE" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"><path d="M136 130 L376 130 M256 130 L256 282"/></g>
+ <g fill="#2E86DE"><circle cx="256" cy="346" r="24"/></g>
+ <text x="256" y="478" text-anchor="middle" font-family="Inter, DejaVu Sans, sans-serif" font-weight="500" font-size="30" letter-spacing="2" fill="#2E86DE" fill-opacity="0.75">by Roman</text>
+</svg>
