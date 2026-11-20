@@ -113,6 +113,8 @@ export interface TelegramPort {
   download(chatId: string, messageId: number): Promise<{ data: Buffer; filename?: string; mimetype?: string }>;
   sendText(chatId: string, text: string, replyTo?: number): Promise<number>;
   sendFile(chatId: string, file: OutgoingFile, replyTo?: number): Promise<number>;
+  /** Sends a voice note (Ogg Opus) with its duration and Telegram's packed waveform. */
+  sendVoice(chatId: string, note: { ogg: Buffer; seconds: number; waveform: Buffer }, replyTo?: number): Promise<number>;
   markRead(chatId: string): Promise<void>;
   /** Presses an inline button of a bot's message; returns the bot's popup answer, if any. */
   press(chatId: string, messageId: number, button: { text?: string; row?: number; column?: number }): Promise<string | undefined>;

@@ -574,6 +574,21 @@ export class TelegramService implements TelegramPort {
     });
   }
 
+  async sendVoice(chatId: string, note: { ogg: Buffer; seconds: number; waveform: Buffer }, replyTo?: number): Promise<number> {
+    return this.call(async (c) => {
+      const peer = await this.peer(c, chatId);
+      const sent = await c.sendFile(peer, {
+        file: new CustomFile('voice.ogg', note.ogg.length, '', note.ogg),
+        voiceNote: true,
+        attributes: [new Api.DocumentAttributeAudio({ voice: true, duration: note.seconds, waveform: note.waveform })],
+        ...(replyTo ? { replyTo } : {}),
+        workers: 1,
+      });
+      this.dialogCache = undefined;
+      return sent.id;
+    });
+  }
+
   async markRead(chatId: string): Promise<void> {
     await this.call(async (c) => {
       const peer = await this.peer(c, chatId);

@@ -7,7 +7,11 @@ import { call, testConfig, testContext } from '../../test-support.js';
 import { makePdf } from '../../test-fixtures.js';
 import { listChatsTool, readChatTool, searchTool, markReadTool, statusTool, groupInfoTool } from './chats.js';
 import { filesToLinkTool, getFileTool, listFilesTool } from './files.js';
-import { botTool, createUploadLinkTool, sendFileTool, sendMessageTool } from './send.js';
+import { botTool, createUploadLinkTool, sendFileTool, sendMessageTool, sendVoiceTool } from './send.js';
+import { createMcpServer } from '../server.js';
+import { allTools } from './index.js';
+import { spawnSync } from 'node:child_process';
+import { toneMp3 } from '../../test-fixtures.js';
 import { UploadStore } from '../../uploads.js';
 import { uploadRouter } from '../../web/upload.js';
 import { silentLogger } from '../../log.js';
@@ -183,4 +187,23 @@ test('not logged in: tools say so', async () => {
   ctx.tg.state = { state: 'logged_out' };
   const s = JSON.parse((await call(statusTool, {}, ctx)).text) as { note: string };
   assert.match(s.note, /logs in on https:\/\/tg\.test\/admin/);
+});
+
+test('voice: offered only when ElevenLabs is set up; sends a voice note with a packed waveform, as a reply', { skip: spawnSync('ffmpeg', ['-version']).status !== 0 && 'ffmpeg not installed' }, async () => {
+  const listed = (c: ReturnType<typeof seeded>) => Object.keys((createMcpServer(c, allTools) as unknown as { _registeredTools: Record<string, unknown> })._registeredTools);
+  assert.ok(!listed(seeded()).includes('telegram_send_voice'));
+  const ctx = seeded();
+  ctx.config = testConfig({ ELEVENLABS_API_KEY: 'k', ELEVENLABS_VOICE_ID: 'abcdefgh12', VOICE_MAX_CHARS: '40' });
+  ctx.fetchImpl = (async () => new Response(toneMp3(), { status: 200 })) as typeof fetch;
+  assert.ok(listed(ctx).includes('telegram_send_voice'));
+  const r = await call(sendVoiceTool, { chat: 'Alice Martin', text: 'Oui, samedi ça marche', reply_to: 20 }, ctx);
+  assert.equal(r.isError, false, r.text);
+  const sent = ctx.tg.sent[0]!;
+  assert.equal(sent.chatId, ALICE);
+  assert.equal(sent.replyTo, 20);
+  assert.equal(sent.voice!.ogg.subarray(0, 4).toString(), 'OggS');
+  assert.equal(sent.voice!.seconds, 2);
+  assert.equal(sent.voice!.waveform.length, 63); // 100 levels × 5 bits
+  assert.match((await call(sendVoiceTool, { chat: ALICE, text: 'x'.repeat(41) }, ctx)).text, /limited to 40/);
+  assert.equal((await call(sendVoiceTool, { chat: '@PriceBot', text: 'hi' }, ctx)).isError, true);
 });
