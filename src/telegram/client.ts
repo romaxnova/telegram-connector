@@ -389,13 +389,24 @@ export class TelegramService implements TelegramPort {
     if (!opts.refresh && this.dialogCache && Date.now() - this.dialogCache.at < DIALOG_CACHE_MS) {
       return opts.archived === undefined ? this.dialogCache.list : this.dialogCache.list.filter((c) => c.archived === opts.archived);
     }
-    const list = await this.call(async (c) => {
+    // Claude often asks for several chats at once: those calls share one fetch instead of each
+    // pulling every dialog from Telegram (slower, and many requests risk Telegram's flood limits).
+    this.dialogsInFlight ??= this.call(async (c) => {
       const [main, archive] = await Promise.all([c.getDialogs({ limit: 1000, folder: 0 }), c.getDialogs({ limit: 500, folder: 1 })]);
       return [...main, ...archive].map((d) => this.chatFromDialog(d as never)).filter((x): x is ChatInfo => Boolean(x));
-    });
-    this.dialogCache = { at: Date.now(), list };
+    })
+      .then((list) => {
+        this.dialogCache = { at: Date.now(), list };
+        return list;
+      })
+      .finally(() => {
+        this.dialogsInFlight = undefined;
+      });
+    const list = await this.dialogsInFlight;
     return opts.archived === undefined ? list : list.filter((c) => c.archived === opts.archived);
   }
+
+  private dialogsInFlight: Promise<ChatInfo[]> | undefined;
 
   async resolve(ref: string): Promise<ChatInfo | undefined> {
     const r = ref.trim();
