@@ -1,5 +1,7 @@
 # Telegram Connector
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/telegram-connector-for-claude?referralCode=UpSGZQ&utm_medium=integration&utm_source=template&utm_campaign=telegram-connector)
+
 Let Claude read and search your Telegram chats, groups and channels, read the files people share, send messages and files for you, and talk to bots you allow. It exchanges files with [G-Spot Assistant](https://github.com/romaxnova/g-spot-assistant) (Gmail, Drive) and the [WhatsApp connector](https://github.com/romaxnova/whatsapp-connector) in both directions.
 
 You run your own private copy. It logs in to your Telegram account like another Telegram app, through Telegram's official client API. Telegram keeps your whole history on its servers, so Claude can read any chat back to its first message. This server stores only the login session, encrypted.
@@ -34,6 +36,13 @@ Every connector issues upload links, and each one only sends files to the hosts 
 - **Drive, Gmail or WhatsApp → Telegram:** call `telegram_create_upload_link`, then `send_to_link` (G-Spot) or `whatsapp_files_to_link`, then `telegram_send_file` with the `link_id`.
 
 ## Set it up (Railway)
+
+### One click
+
+1. Press **[Deploy on Railway](https://railway.com/deploy/telegram-connector-for-claude?referralCode=UpSGZQ&utm_medium=integration&utm_source=template&utm_campaign=telegram-connector)**, sign in to Railway (no GitHub account needed), choose an **admin password** (12+ characters) in Configure, and deploy.
+2. Open the service → **Settings → Networking** for its address, then that address + `/admin`, and sign in. Continue from step 3 below (API keys, log in, add to Claude).
+
+### By hand
 
 1. Deploy this repository as a Railway service with a **volume at `/data`** and **one replica**. Set `ADMIN_PASSWORD` and `TOKEN_ENCRYPTION_KEY` (`npm run generate-secrets` prints both), `PEER_UPLOAD_HOSTS` and `DEFAULT_TIMEZONE` (e.g. `Europe/Paris`), then generate a public domain.
 2. Open `https://<domain>/admin` and sign in with the password.
