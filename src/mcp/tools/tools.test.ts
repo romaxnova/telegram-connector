@@ -217,3 +217,13 @@ test('voice: offered only when ElevenLabs is set up; sends a voice note with a p
   assert.equal(accented.isError, false, accented.text);
   assert.deepEqual(body, { text: 'प्रिव्येत', model_id: 'eleven_v3', language_code: 'hi' });
 });
+
+test('"me", "Saved Messages" or "Избранное" is the account\'s own chat', async () => {
+  const { resolveChat } = await import('./common.js');
+  const ctx = testContext();
+  ctx.tg.chats = [
+    { id: '42', name: 'Roman', kind: 'user', username: 'roman', unread: 0, archived: false, pinned: false },
+    { id: '43', name: 'Romain Dupont', kind: 'user', unread: 0, archived: false, pinned: false },
+  ];
+  for (const q of ['me', 'Saved Messages', 'Избранное', 'messages enregistrés']) assert.equal((await resolveChat(ctx, q)).id, '42', q);
+});

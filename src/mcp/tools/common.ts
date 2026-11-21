@@ -11,7 +11,7 @@ export const chatParam = z
   .string()
   .min(1)
   .max(200)
-  .describe('The chat: its chat_id (from telegram_list_chats), an @username or t.me link, or (part of) the name of the person, group, channel or bot.');
+  .describe("The chat: its chat_id (from telegram_list_chats), an @username or t.me link, or (part of) the name of the person, group, channel or bot; \"me\" for the user's own Saved Messages.");
 
 export const sinceParam = z.string().max(40).optional().describe('Only from this time on: an ISO date or date-time (2026-11-01, 2026-11-01T18:00), read in the default timezone when it has no offset, or a number of days back such as "7d".');
 export const untilParam = z.string().max(40).optional().describe('Only up to this time (same forms as since).');
@@ -66,9 +66,28 @@ export function fold(s: string): string {
  * The chat Claude means: an id, an @username or t.me link (also outside the dialogs), or a name.
  * Exact names win over partial ones; several matches are listed back for Claude to choose from.
  */
+/** Ways people name their own chat (Saved Messages), in the languages of the users so far. */
+const SELF_NAMES = new Set(
+  ['me', 'myself', 'self', 'saved', 'saved messages', 'my saved messages', 'moi', 'messages enregistres', 'избранное', 'сохраненные', 'сохраненные сообщения', 'я', 'мне', 'себе'].map((n) => fold(n)),
+);
+
+/** The account's own chat (Saved Messages). */
+async function selfChat(ctx: ToolContext, dialogs: ChatInfo[]): Promise<ChatInfo | undefined> {
+  const s = ctx.tg.status();
+  if (s.state !== 'open') return undefined;
+  const { username, phone } = s.me;
+  const hit = dialogs.find((c) => (username && c.username?.toLowerCase() === username.toLowerCase()) || (phone && c.phone === phone));
+  if (hit) return hit;
+  return username ? ctx.tg.resolve(`@${username}`).catch(() => undefined) : undefined;
+}
+
 export async function resolveChat(ctx: ToolContext, input: string): Promise<ChatInfo> {
   const q = input.trim();
   const dialogs = await ctx.tg.dialogs();
+  if (SELF_NAMES.has(fold(q))) {
+    const self = await selfChat(ctx, dialogs);
+    if (self) return self;
+  }
   if (/^-?\d{4,20}$/.test(q)) {
     const byId = dialogs.find((c) => c.id === q);
     if (byId) return byId;
