@@ -1,6 +1,7 @@
 /**
  * Entry point: wires configuration, storage, the Telegram connection and the HTTP app together.
  */
+import { MediaTextCache } from './media/media-text.js';
 import { loadConfig, ConfigError } from './config.js';
 import { createLogger } from './log.js';
 import { checkpoint, cleanupExpired, compact, fileSizes, openDatabase } from './db.js';
@@ -48,7 +49,9 @@ function main(): void {
   );
   const uploads = new UploadStore({}, Date.now, new SqliteUploadVault(db, keys));
   const tg = new TelegramService(secrets, log, config.telegramApi);
-  const app = createApp({ config, log, store, clients, provider, tools: allTools, tg, uploads });
+  const mediaText = new MediaTextCache(db, keys);
+  tg.onLogout = () => mediaText.clear();
+  const app = createApp({ config, log, store, clients, provider, tools: allTools, tg, uploads, mediaText });
   const server = app.listen(config.port, '0.0.0.0', (err?: Error) => {
     if (err) {
       log.error('could not start listening', { port: config.port, error: err.message });

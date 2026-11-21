@@ -5,6 +5,7 @@
 
 /** The one service this connector serves (kept as a type so the shared auth code reads the same as in G-Spot Assistant). */
 import { voiceConfig, type VoiceConfig } from './voice/voice.js';
+import { ocrConfig, transcribeConfig, type OcrConfig, type TranscribeConfig } from './media/media-text.js';
 
 export type Service = 'telegram';
 
@@ -37,6 +38,10 @@ export interface Config {
   telegramApi: { apiId: number; apiHash: string } | undefined;
   /** Voice messages (ElevenLabs), when ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID are set. */
   voice: VoiceConfig | undefined;
+  /** Voice notes and audio as text (ElevenLabs Speech to Text); undefined without ELEVENLABS_API_KEY. */
+  transcribe: TranscribeConfig | undefined;
+  /** Text in photos (Tesseract, on this server); undefined with OCR=off. */
+  ocr: OcrConfig | undefined;
   /** Bots (usernames, lower case, without @) Claude may talk to through telegram_bot. Empty: none. */
   botAllowlist: string[];
   /** Redirect URIs an OAuth client may use. Loopback entries match any port; an entry ending in "/*" any one last path segment. */
@@ -226,6 +231,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     peerUploadHosts: hostList(optional(env, 'PEER_UPLOAD_HOSTS', '')),
     telegramApi: telegramApi(env),
     voice: voiceConfig(env),
+    transcribe: transcribeConfig(env),
+    ocr: ocrConfig(env),
     botAllowlist: list(optional(env, 'TELEGRAM_BOT_ALLOWLIST', '').toLowerCase()).map((b) => b.replace(/^@/, '')),
     allowedRedirectUris: [...DEFAULT_REDIRECT_URIS, ...list(optional(env, 'EXTRA_REDIRECT_URIS', ''))],
     cimdAllowedHosts: list(optional(env, 'CIMD_ALLOWED_HOSTS', 'claude.ai').toLowerCase()),

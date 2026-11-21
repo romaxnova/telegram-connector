@@ -3,6 +3,7 @@
  * (PDF, Word, Excel, text, photos), and hand them to the owner's other
  * connectors (G-Spot Assistant for Drive and Gmail, the WhatsApp connector).
  */
+import { MediaTextError, ocr, remembered, transcribe } from '../../media/media-text.js';
 import * as z from 'zod';
 import { clip, clipNote, defineTool, jsonResult, textResult, ToolInputError, withImage, type ToolContext } from '../registry.js';
 import { chatParam, fmt, mediaPhrase, messageId, parseWhen, resolveChat, sinceParam, untilParam } from './common.js';
@@ -88,12 +89,13 @@ export const getFileTool = defineTool({
   name: 'telegram_get_file',
   title: 'Read a file from Telegram',
   description:
-    'Downloads the file of a message and returns its content: PDFs as text page by page, Word as Markdown, Excel as CSV, PowerPoint as text, text files as they are, photos as an image you can look at (scaled down to fit). Audio and video cannot be read here: move them to Drive with telegram_files_to_link. Long text is paged with offset/max_chars.',
+    'Downloads the file of a message and returns its content: PDFs as text page by page, Word as Markdown, Excel as CSV, PowerPoint as text, text files as they are, photos as an image you can look at (scaled down to fit) with the text read from them (OCR), voice messages, audio, round video messages and short videos as a transcript. Long text is paged with offset/max_chars. Transcripts and photo text are worked out once and remembered.',
   inputSchema: {
     chat: chatParam,
     message_id: z.union([z.string().max(30), z.number().int()]).describe('The id after # in telegram_read_chat, or message_id from telegram_list_files.'),
     max_chars: z.number().int().min(200).max(100_000).optional().describe('Most characters of text to return (default 40,000).'),
     offset: z.number().int().min(0).optional(),
+    include_image: z.boolean().optional().describe('Photos: false returns only the text read from it, which is cheaper when only its text matters (a screenshot, a listing, a receipt). Default true.'),
   },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   async handler(args, ctx) {
@@ -104,13 +106,17 @@ export const getFileTool = defineTool({
     const header = `${name} (${humanSize(file.data.length)}, ${mimetype ?? 'unknown type'}) from ${msg.senderName} in ${chat.name}, ${fmt(msg.date, ctx.config.defaultTimezone)}${msg.text ? `\nCaption: ${msg.text}` : ''}`;
     const sniffed = sniffMime(file.data);
     if (sniffed?.startsWith('image/') || msg.kind === 'photo' || msg.kind === 'sticker') {
-      if (sniffed && VIEWABLE_IMAGE_TYPES.has(sniffed) && file.data.length <= MAX_IMAGE_BYTES) return withImage(textResult(header), { data: file.data, mimeType: sniffed });
+      const read = msg.kind === 'sticker' ? undefined : await photoText(ctx, `ocr:${chat.id}:${msg.id}`, file.data);
+      const head = `${header}${read ? `\n\nText in the image (OCR, may contain mistakes):\n${read}` : ''}`;
+      if (args.include_image === false) return textResult(read ? head : `${header}\n[No text found in this image; call again without include_image: false to look at it.]`);
+      if (sniffed && VIEWABLE_IMAGE_TYPES.has(sniffed) && file.data.length <= MAX_IMAGE_BYTES) return withImage(textResult(head), { data: file.data, mimeType: sniffed });
       const small = await shrinkImage(file.data);
-      if (small) return withImage(textResult(`${header}\n[Shown scaled down to ${small.width}×${small.height}; the original stays as sent.]`), { data: small.data, mimeType: 'image/jpeg' });
-      return textResult(`${header}\n[This image could not be shown.]`);
+      if (small) return withImage(textResult(`${head}\n[Shown scaled down to ${small.width}×${small.height}; the original stays as sent.]`), { data: small.data, mimeType: 'image/jpeg' });
+      return textResult(`${head}\n[This image could not be shown.]`);
     }
-    if (['audio', 'voice', 'video', 'video_note', 'gif'].includes(msg.kind)) {
-      return textResult(`${header}\n[${msg.kind.replace('_', ' ')} files cannot be read here. telegram_files_to_link moves it to Drive, where the user can play it.]`);
+    if (msg.kind === 'gif') return textResult(`${header}\n[GIFs cannot be read here.]`);
+    if (['audio', 'voice', 'video', 'video_note'].includes(msg.kind)) {
+      return textResult(`${header}\n\n${await speechText(ctx, `stt:${chat.id}:${msg.id}`, file.data, { filename: name, mimetype, seconds: msg.media?.seconds }, 'telegram_files_to_link')}`);
     }
     const content = await readFileContent(file.data, { mimeType: mimetype, filename: name });
     if (content.kind === 'image') return withImage(textResult(header), { data: content.data, mimeType: content.mimeType });
@@ -166,3 +172,29 @@ export const filesToLinkTool = defineTool({
 });
 
 export const fileTools = [listFilesTool, getFileTool, filesToLinkTool];
+
+/** The text in a photo (OCR on this server), remembered; undefined when there is none or OCR is off. */
+async function photoText(ctx: ToolContext, ref: string, data: Buffer): Promise<string | undefined> {
+  const cfg = ctx.config.ocr;
+  if (!cfg) return undefined;
+  try {
+    return (await remembered(ctx.mediaText, ref, () => ocr(data, cfg))).text;
+  } catch (err) {
+    ctx.log.warn('ocr failed', { error: err instanceof Error ? err.message : String(err) });
+    return undefined;
+  }
+}
+
+/** A voice note, audio or video as a transcript (ElevenLabs), remembered; or why it cannot be. */
+async function speechText(ctx: ToolContext, ref: string, data: Buffer, opts: { filename?: string; mimetype?: string; seconds?: number }, moveTool: string): Promise<string> {
+  const cfg = ctx.config.transcribe;
+  if (!cfg) return `[It can be transcribed once ELEVENLABS_API_KEY is set in this server's settings. Meanwhile ${moveTool} moves it to Drive, where the user can play it.]`;
+  try {
+    const { text } = await remembered(ctx.mediaText, ref, async () => (await transcribe(cfg, data, opts, ctx.fetchImpl)).text || undefined);
+    if (text) ctx.log.info('transcribed', { seconds: opts.seconds });
+    return text ? `Transcript (speech to text, may contain mistakes):\n${text}` : '[No speech in it.]';
+  } catch (err) {
+    if (err instanceof MediaTextError) return `[${err.message}]`;
+    throw err;
+  }
+}

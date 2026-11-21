@@ -299,6 +299,9 @@ export class TelegramService implements TelegramPort {
     this.link = { state: this.apiKeys() ? 'logged_out' : 'needs_api_keys' };
   }
 
+  /** Called after a logout, to forget what was derived from the account (transcripts, photo text). */
+  onLogout?: () => void;
+
   /** Ends the session on Telegram (it disappears from Settings → Devices) and forgets it here. */
   async logout(): Promise<void> {
     try {
@@ -311,6 +314,7 @@ export class TelegramService implements TelegramPort {
     this.secrets.delete(SESSION);
     this.dialogCache = undefined;
     this.link = { state: this.apiKeys() ? 'logged_out' : 'needs_api_keys' };
+    this.onLogout?.();
     this.log.info('telegram logged out');
   }
 

@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import sharp from 'sharp';
-import { call, testConfig, testContext } from '../../test-support.js';
+import { call, TEST_KEY, testConfig, testContext } from '../../test-support.js';
+import { MediaTextCache } from '../../media/media-text.js';
+import { openDatabase } from '../../db.js';
 import { makePdf } from '../../test-fixtures.js';
 import { listChatsTool, readChatTool, searchTool, markReadTool, statusTool, groupInfoTool } from './chats.js';
 import { filesToLinkTool, getFileTool, listFilesTool } from './files.js';
@@ -226,4 +228,28 @@ test('"me", "Saved Messages" or "Избранное" is the account\'s own chat'
     { id: '43', name: 'Romain Dupont', kind: 'user', unread: 0, archived: false, pinned: false },
   ];
   for (const q of ['me', 'Saved Messages', 'Избранное', 'messages enregistrés']) assert.equal((await resolveChat(ctx, q)).id, '42', q);
+});
+
+test('get_file: voice messages come back as a transcript, worked out once; photos with their text', async () => {
+  const ctx = seeded();
+  const v = ctx.tg.add(ALICE, { kind: 'voice', senderName: 'Alice Martin', media: { seconds: 7, mimetype: 'audio/ogg' } });
+  ctx.tg.files.set(`${ALICE}/${v.id}`, Buffer.from('OggS fake'));
+  assert.match((await call(getFileTool, { chat: ALICE, message_id: v.id }, ctx)).text, /ELEVENLABS_API_KEY/);
+
+  ctx.config = testConfig({ ELEVENLABS_API_KEY: 'k', OCR: 'on' });
+  ctx.mediaText = new MediaTextCache(openDatabase(':memory:'), [TEST_KEY]);
+  let calls = 0;
+  ctx.fetchImpl = (async () => (calls++, new Response(JSON.stringify({ text: 'Перезвони мне вечером' }), { status: 200 }))) as typeof fetch;
+  assert.match((await call(getFileTool, { chat: ALICE, message_id: v.id }, ctx)).text, /Transcript[^\n]*\nПерезвони мне вечером/);
+  await call(getFileTool, { chat: ALICE, message_id: v.id }, ctx);
+  assert.equal(calls, 1, 'the second read comes from the cache');
+
+  if (spawnSync('tesseract', ['--version']).status === 0) {
+    const p = ctx.tg.add(ALICE, { kind: 'photo', senderName: 'Alice Martin', media: { mimetype: 'image/jpeg' } });
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="900" height="140"><rect width="100%" height="100%" fill="white"/><text x="30" y="90" font-family="DejaVu Sans, sans-serif" font-size="44">Loyer 1100 euros charges comprises</text></svg>`;
+    ctx.tg.files.set(`${ALICE}/${p.id}`, await sharp(Buffer.from(svg)).jpeg().toBuffer());
+    const textOnly = await call(getFileTool, { chat: ALICE, message_id: p.id, include_image: false }, ctx);
+    assert.match(textOnly.text, /Text in the image \(OCR[^\n]*\n.*Loyer 1100 euros/);
+    assert.equal(textOnly.result.content.some((c) => c.type === 'image'), false);
+  }
 });

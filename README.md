@@ -72,6 +72,13 @@ The session shows in Telegram → Settings → Devices as "Claude connector". En
 
 **Free plan limits.** About 10,000 characters a month, and only the built-in voices and your own voices: library voices need a paid plan. `npm run voice-preview` compares voices by ear (see the script's header).
 
+## Voice notes and photos as text
+
+`telegram_get_file` turns media into text, only for the file Claude opens, and remembers the result (encrypted, 180 days) so each file is worked out once:
+
+- **Voice notes, audio and short videos → transcript**, by ElevenLabs speech to text, with the same `ELEVENLABS_API_KEY` as voice messages. It uses that account's quota; `TRANSCRIBE_MAX_SECONDS` (default 600) caps the length, `TRANSCRIBE=off` turns it off. The audio goes to ElevenLabs, nowhere else.
+- **Photos → their text**, read by Tesseract on your own server: the image never leaves it, and it costs nothing. Good on screenshots, listings, documents and receipts; weak on handwriting. Claude still gets the image too, unless it asks for the text only (`include_image: false`), which is cheaper. `OCR_LANGUAGES` (default `eng+fra+rus`), `OCR=off`.
+
 ## Privacy and limits
 
 - Only the login session and the API keys are stored, encrypted (AES-256-GCM, key from `TOKEN_ENCRYPTION_KEY`). Messages and files stay on Telegram and are fetched when asked for. Files staged for sending are kept encrypted for 24 hours at most.
