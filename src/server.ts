@@ -1,6 +1,7 @@
 /**
  * Entry point: wires configuration, storage, the Telegram connection and the HTTP app together.
  */
+import sharp from 'sharp';
 import { MediaTextCache } from './media/media-text.js';
 import { loadConfig, ConfigError } from './config.js';
 import { createLogger } from './log.js';
@@ -19,6 +20,11 @@ import { VERSION } from './version.js';
 const DAY_S = 24 * 60 * 60;
 
 function main(): void {
+  // Images (photos shown to Claude, OCR): libvips keeps a cache of recent operations and one
+  // thread per core, and the process never gives that memory back (measured: +55 MB after four
+  // photos, then flat at +15 MB without them). One connector reads one image at a time anyway.
+  sharp.cache(false);
+  sharp.concurrency(1);
   let config;
   try {
     config = loadConfig();

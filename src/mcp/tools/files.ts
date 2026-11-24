@@ -3,6 +3,7 @@
  * (PDF, Word, Excel, text, photos), and hand them to the owner's other
  * connectors (G-Spot Assistant for Drive and Gmail, the WhatsApp connector).
  */
+import { readDocument } from '../../media/documents.js';
 import { MediaTextError, ocr, remembered, transcribe } from '../../media/media-text.js';
 import * as z from 'zod';
 import { clip, clipNote, defineTool, jsonResult, textResult, ToolInputError, withImage, type ToolContext } from '../registry.js';
@@ -89,18 +90,39 @@ export const getFileTool = defineTool({
   name: 'telegram_get_file',
   title: 'Read a file from Telegram',
   description:
-    'Downloads the file of a message and returns its content: PDFs as text page by page, Word as Markdown, Excel as CSV, PowerPoint as text, text files as they are, photos as an image you can look at (scaled down to fit) with the text read from them (OCR), voice messages, audio, round video messages and short videos as a transcript. Long text is paged with offset/max_chars. Transcripts and photo text are worked out once and remembered.',
+    'Downloads the file of a message and returns its content: PDFs as text page by page, Word as Markdown, Excel as CSV, PowerPoint as text, text files as they are, photos as an image you can look at (scaled down to fit) with the text read from them (OCR), voice messages, audio, round video messages and short videos as a transcript. Long text is paged with offset/max_chars, PDFs also by page number (pages). Scanned PDFs are read by OCR, a few pages per call. Documents, transcripts and photo text are worked out once and remembered, so reading on is fast.',
   inputSchema: {
     chat: chatParam,
     message_id: z.union([z.string().max(30), z.number().int()]).describe('The id after # in telegram_read_chat, or message_id from telegram_list_files.'),
     max_chars: z.number().int().min(200).max(100_000).optional().describe('Most characters of text to return (default 40,000).'),
+    pages: z.string().max(40).optional().describe('PDFs: the pages to return, e.g. "12", "3-5" or "1,4,7-9" (up to 30, or 8 for a scan). Cheaper than reading a long PDF whole: look at its contents page first.'),
     offset: z.number().int().min(0).optional(),
     include_image: z.boolean().optional().describe('Photos: false returns only the text read from it, which is cheaper when only its text matters (a screenshot, a listing, a receipt). Default true.'),
   },
   annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   async handler(args, ctx) {
     const { chat, msg } = await fileMessage(ctx, args.chat, args.message_id);
-    const file = await ctx.tg.download(chat.id, msg.id);
+    // A document read before is answered from its remembered text, without downloading it again.
+    let fetched: Awaited<ReturnType<typeof ctx.tg.download>> | undefined;
+    if (msg.kind === 'document') {
+      const name = msg.media?.filename ?? fileName(msg);
+      const head = `${name} (${msg.media?.size ? humanSize(msg.media.size) : 'size unknown'}, ${msg.media?.mimetype ?? 'unknown type'}) from ${msg.senderName} in ${chat.name}, ${fmt(msg.date, ctx.config.defaultTimezone)}${msg.text ? `\nCaption: ${msg.text}` : ''}`;
+      const doc = await readDocument({
+        ref: `${chat.id}:${msg.id}`,
+        mimeType: msg.media?.mimetype,
+        filename: name,
+        load: async () => (fetched ??= await ctx.tg.download(chat.id, msg.id)).data,
+        ...(args.pages ? { pages: args.pages } : {}),
+        maxChars: args.max_chars ?? 40_000,
+        offset: args.offset ?? 0,
+        ...(ctx.mediaText ? { cache: ctx.mediaText } : {}),
+        ...(ctx.config.ocr ? { ocr: ctx.config.ocr } : {}),
+      });
+      if (doc.kind === 'text') return textResult(`${head}\n\n${doc.text}`);
+      if (doc.kind === 'none') return textResult(`${head}\n[${doc.note}]`);
+      // An image sent as a document: shown below like a photo, with its text.
+    }
+    const file = fetched ?? (await ctx.tg.download(chat.id, msg.id));
     const name = file.filename ?? fileName(msg);
     const mimetype = file.mimetype ?? msg.media?.mimetype;
     const header = `${name} (${humanSize(file.data.length)}, ${mimetype ?? 'unknown type'}) from ${msg.senderName} in ${chat.name}, ${fmt(msg.date, ctx.config.defaultTimezone)}${msg.text ? `\nCaption: ${msg.text}` : ''}`;
