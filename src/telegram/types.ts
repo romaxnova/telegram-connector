@@ -116,6 +116,8 @@ export interface TelegramPort {
   /** Sends a voice note (Ogg Opus) with its duration and Telegram's packed waveform. */
   sendVoice(chatId: string, note: { ogg: Buffer; seconds: number; waveform: Buffer }, replyTo?: number): Promise<number>;
   markRead(chatId: string): Promise<void>;
+  /** Puts an emoji reaction on a message, or removes ours with an empty emoji. */
+  react(chatId: string, messageId: number, emoji: string): Promise<void>;
   /** Presses an inline button of a bot's message; returns the bot's popup answer, if any. */
   press(chatId: string, messageId: number, button: { text?: string; row?: number; column?: number }): Promise<string | undefined>;
   /** Members of a group (first `limit`). */

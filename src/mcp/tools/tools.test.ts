@@ -9,7 +9,7 @@ import { openDatabase } from '../../db.js';
 import { makePdf } from '../../test-fixtures.js';
 import { listChatsTool, readChatTool, searchTool, markReadTool, statusTool, groupInfoTool } from './chats.js';
 import { filesToLinkTool, getFileTool, listFilesTool } from './files.js';
-import { botTool, createUploadLinkTool, sendFileTool, sendMessageTool, sendVoiceTool } from './send.js';
+import { botTool, createUploadLinkTool, reactTool, sendFileTool, sendMessageTool, sendVoiceTool } from './send.js';
 import { createMcpServer } from '../server.js';
 import { allTools } from './index.js';
 import { spawnSync } from 'node:child_process';
@@ -252,4 +252,17 @@ test('get_file: voice messages come back as a transcript, worked out once; photo
     assert.match(textOnly.text, /Text in the image \(OCR[^\n]*\n.*Loyer 1100 euros/);
     assert.equal(textOnly.result.content.some((c) => c.type === 'image'), false);
   }
+});
+
+test('react: one emoji on a message; removed with remove: true', async () => {
+  const ctx = seeded();
+  const m = ctx.tg.add(GROUP, { text: 'Je propose 1100 €', senderName: 'Alice Martin' });
+  const r = await call(reactTool, { chat: GROUP, message_id: m.id, emoji: '👍' }, ctx);
+  assert.equal(r.isError, false, r.text);
+  assert.deepEqual(ctx.tg.reactions[0], { chatId: GROUP, messageId: m.id, emoji: '👍' });
+  assert.match(r.text, /1100/);
+  assert.equal((await call(reactTool, { chat: GROUP, message_id: m.id, emoji: 'super' }, ctx)).isError, true);
+  await call(reactTool, { chat: GROUP, message_id: m.id, remove: true }, ctx);
+  assert.equal(ctx.tg.reactions[1]!.emoji, '');
+  assert.equal((await call(reactTool, { chat: GROUP, message_id: 999_999, emoji: '👍' }, ctx)).isError, true);
 });

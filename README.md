@@ -20,7 +20,7 @@ You run your own private copy. It logs in to your Telegram account like another 
 |---|---|
 | Read | `telegram_status`, `telegram_list_chats`, `telegram_read_chat`, `telegram_search_messages` (one chat or everywhere), `telegram_group_info` |
 | Files | `telegram_list_files`, `telegram_get_file` (PDF/Word/Excel/PowerPoint as text, photos as images), `telegram_files_to_link` (to Drive, Gmail or WhatsApp) |
-| Write | `telegram_send_message`, `telegram_send_file`, `telegram_send_voice` (optional), `telegram_create_upload_link`, `telegram_list_uploads`, `telegram_mark_read`, `telegram_bot` |
+| Write | `telegram_send_message`, `telegram_send_file`, `telegram_send_voice` (optional), `telegram_react`, `telegram_create_upload_link`, `telegram_list_uploads`, `telegram_mark_read`, `telegram_bot` |
 
 In Claude's connector settings, set `telegram_send_message`, `telegram_send_file` and `telegram_bot` to **Ask**.
 

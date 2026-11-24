@@ -39,6 +39,7 @@ export class FakeTelegram implements TelegramPort {
   sent: { chatId: string; text?: string; file?: OutgoingFile; voice?: { ogg: Buffer; seconds: number; waveform: Buffer }; replyTo?: number }[] = [];
   pressed: { chatId: string; messageId: number; button: unknown }[] = [];
   read: string[] = [];
+  reactions: { chatId: string; messageId: number; emoji: string }[] = [];
   /** How a bot answers: called on each text or press, may append messages. */
   botScript?: (chatId: string, input: { text?: string; press?: string }) => void;
   private nextId = 1000;
@@ -99,6 +100,9 @@ export class FakeTelegram implements TelegramPort {
   async sendVoice(chatId: string, note: { ogg: Buffer; seconds: number; waveform: Buffer }, replyTo?: number): Promise<number> {
     this.sent.push({ chatId, voice: note, replyTo });
     return this.add(chatId, { out: true, senderName: 'me', kind: 'voice', media: { seconds: note.seconds } }).id;
+  }
+  async react(chatId: string, messageId: number, emoji: string): Promise<void> {
+    this.reactions.push({ chatId, messageId, emoji });
   }
   async markRead(chatId: string): Promise<void> {
     this.read.push(chatId);

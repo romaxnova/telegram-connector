@@ -8,6 +8,7 @@
  * Telegram keeps the whole history on its servers, so nothing is indexed here:
  * tools ask Telegram directly. Tools use the TelegramPort interface.
  */
+import { ToolInputError } from '../mcp/registry.js';
 import { Api, TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions/index.js';
 import { CustomFile } from 'telegram/client/uploads.js';
@@ -564,6 +565,21 @@ export class TelegramService implements TelegramPort {
   }
 
   // ---- writing ----
+
+  async react(chatId: string, messageId: number, emoji: string): Promise<void> {
+    await this.call(async (c) => {
+      const peer = await this.peer(c, chatId);
+      try {
+        await c.invoke(new Api.messages.SendReaction({ peer, msgId: messageId, reaction: emoji ? [new Api.ReactionEmoji({ emoticon: emoji })] : [] }));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // Telegram accepts only its own set of reactions, and a chat can narrow it further.
+        if (/REACTION_INVALID|REACTION_EMPTY|REACTIONS_TOO_MANY/.test(msg)) throw new ToolInputError(`Telegram does not allow ${emoji || 'that'} as a reaction in this chat; try 👍 ❤️ 🔥 😂 🙏 or 👌.`);
+        if (/MESSAGE_ID_INVALID/.test(msg)) throw new ToolInputError('That message cannot be reacted to (it was deleted or is a service message).');
+        throw err;
+      }
+    });
+  }
 
   async sendText(chatId: string, text: string, replyTo?: number): Promise<number> {
     return this.call(async (c) => {
