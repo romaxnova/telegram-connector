@@ -96,7 +96,7 @@ export type LinkState =
   | { state: 'awaiting_code'; phone: string; viaApp: boolean; since: number }
   | { state: 'awaiting_password'; phone: string; hint?: string }
   | { state: 'connecting' }
-  | { state: 'open'; since: number; me: { name: string; username?: string; phone?: string } }
+  | { state: 'open'; since: number; me: { name: string; username?: string; phone?: string; id?: string } }
   | { state: 'error'; message: string };
 
 /** What tools need from the Telegram connection. */

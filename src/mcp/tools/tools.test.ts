@@ -5,6 +5,8 @@ import express from 'express';
 import sharp from 'sharp';
 import { call, TEST_KEY, testConfig, testContext } from '../../test-support.js';
 import { MediaTextCache } from '../../media/media-text.js';
+import { ScheduledStore } from '../../schedule/scheduled.js';
+import { cancelScheduledTool, listScheduledTool, scheduleSendTool } from './schedule.js';
 import { openDatabase } from '../../db.js';
 import { makePdf } from '../../test-fixtures.js';
 import { listChatsTool, readChatTool, searchTool, markReadTool, statusTool, groupInfoTool } from './chats.js';
@@ -265,4 +267,18 @@ test('react: one emoji on a message; removed with remove: true', async () => {
   await call(reactTool, { chat: GROUP, message_id: m.id, remove: true }, ctx);
   assert.equal(ctx.tg.reactions[1]!.emoji, '');
   assert.equal((await call(reactTool, { chat: GROUP, message_id: 999_999, emoji: '👍' }, ctx)).isError, true);
+});
+
+test('schedule: a message for later is queued with its recipient and local time, listed, and cancelled', async () => {
+  const ctx = seeded();
+  ctx.scheduled = new ScheduledStore(openDatabase(':memory:'), [TEST_KEY]);
+  const at = new Date(Date.now() + 2 * 86400e3);
+  const local = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(at) + 'T08:30';
+  const ok = JSON.parse((await call(scheduleSendTool, { chat: ALICE, text: 'Bonne visite demain !', send_at: local }, ctx)).text) as { id: string; to: string; send_at: string };
+  assert.equal(ok.to, 'Alice Martin');
+  assert.match(ok.send_at, /08:30 \(Europe\/Paris\)/);
+  assert.equal(ctx.tg.sent.length, 0, 'nothing sent now');
+  assert.equal(JSON.parse((await call(listScheduledTool, {}, ctx)).text).count, 1);
+  assert.equal((await call(cancelScheduledTool, { id: ok.id }, ctx)).isError, false);
+  assert.equal(JSON.parse((await call(listScheduledTool, {}, ctx)).text).count, 0);
 });

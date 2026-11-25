@@ -232,7 +232,7 @@ export class TelegramService implements TelegramPort {
 
   private async opened(): Promise<void> {
     const me = (await this.client!.getMe()) as Api.User;
-    this.link = { state: 'open', since: Date.now(), me: { name: personName(me), username: me.username ?? undefined, phone: me.phone ? `+${me.phone}` : undefined } };
+    this.link = { state: 'open', since: Date.now(), me: { name: personName(me), username: me.username ?? undefined, phone: me.phone ? `+${me.phone}` : undefined, id: me.id.toString() } };
     this.log.info('telegram connected');
     // Warm the entity cache so chats can be addressed by id.
     this.dialogs({ refresh: true }).catch(() => undefined);

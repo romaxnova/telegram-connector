@@ -1,6 +1,7 @@
 /**
  * Entry point: wires configuration, storage, the Telegram connection and the HTTP app together.
  */
+import { ScheduledSender, ScheduledStore } from './schedule/scheduled.js';
 import sharp from 'sharp';
 import { MediaTextCache } from './media/media-text.js';
 import { loadConfig, ConfigError } from './config.js';
@@ -56,8 +57,12 @@ function main(): void {
   const uploads = new UploadStore({}, Date.now, new SqliteUploadVault(db, keys));
   const tg = new TelegramService(secrets, log, config.telegramApi);
   const mediaText = new MediaTextCache(db, keys);
-  tg.onLogout = () => mediaText.clear();
-  const app = createApp({ config, log, store, clients, provider, tools: allTools, tg, uploads, mediaText });
+  const scheduled = new ScheduledStore(db, keys);
+  tg.onLogout = () => {
+    mediaText.clear();
+    scheduled.clear();
+  };
+  const app = createApp({ config, log, store, clients, provider, tools: allTools, tg, uploads, mediaText, scheduled });
   const server = app.listen(config.port, '0.0.0.0', (err?: Error) => {
     if (err) {
       log.error('could not start listening', { port: config.port, error: err.message });
@@ -69,6 +74,21 @@ function main(): void {
   server.headersTimeout = 70_000;
   server.requestTimeout = 15 * 60_000;
 
+  // Scheduled messages go out from here; a failure is told in the user's Saved Messages.
+  const sender = new ScheduledSender(
+    scheduled,
+    {
+      ready: () => tg.status().state === 'open',
+      send: async (chatId, text) => String(await tg.sendText(chatId, text)),
+      notify: async (text) => {
+        const s = tg.status();
+        if (s.state === 'open' && s.me.id) await tg.sendText(s.me.id, text);
+      },
+    },
+    log,
+    { timezone: config.defaultTimezone },
+  );
+  sender.start();
   tg.start().catch((err: unknown) => log.error('telegram could not start', { error: err instanceof Error ? err.message : String(err) }));
 
   const logMemory = () => {
